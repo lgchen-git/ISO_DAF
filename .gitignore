@@ -1,0 +1,110 @@
+# Standard pipeline runtime roots
+inputs/*
+reference/*
+log/*
+outputs/*
+tmp/*
+work/*
+
+# Keep directory structure
+!log/.gitkeep
+!outputs/.gitkeep
+!inputs/.gitkeep
+!reference/.gitkeep
+!tmp/.gitkeep
+
+# Workflow engine metadata
+.snakemake/
+.nextflow*
+.nf-test/
+
+# Conda and local envs
+.conda/
+.mamba/
+.micromamba/
+conda-meta/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+
+# Editors
+.DS_Store
+Thumbs.db
+
+# Local environment files
+.env
+.venv/
+venv/
+/bin/
+/lib/
+/lib64/
+/lib64
+/include/
+/pyvenv.cfg
+*.swp
+*.swo
+.codex
+
+# Common bioinformatics temp and cache files
+*.tmp
+*.temp
+*.bak
+*.log
+*.pid
+*.sqlite
+*.html.tmp
+
+# Local notebooks and checkpoints
+.ipynb_checkpoints/
+# Public release exclusions
+data/
+raw_data/
+reference/
+references/
+results/
+output/
+outputs/
+logs/
+log/
+tmp/
+work/
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+*.bam
+*.bai
+*.cram
+*.crai
+*.h5
+*.h5ad
+*.loom
+*.rds
+.env
+.codex/
+.codex-config.toml
+.agents/
+AGENTS.md
+archive/
+legacy/
+docs/*handoff*
+docs/*Handoff*
+docs/*codex*
+docs/*Codex*
+docs/*migration*
+docs/*MIGRATION*
+docs/*audit*
+docs/*AUDIT*
+docs/*summary*
+docs/*SUMMARY*
+docs/*review*
+docs/*REVIEW*

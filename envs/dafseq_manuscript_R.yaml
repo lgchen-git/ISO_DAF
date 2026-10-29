@@ -1,0 +1,8 @@
+name: R
+channels:
+  - defaults
+dependencies:
+  - conda-forge::r-base
+  - cmake
+  - ca-certificates
+  - openssl

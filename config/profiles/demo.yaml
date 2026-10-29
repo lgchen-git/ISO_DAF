@@ -1,0 +1,8 @@
+project_id: iso_daf
+profile: demo
+run_id: demo
+sample_id: demo
+sample_sheet: config/samples.tsv
+execution:
+  mode: smoke
+  external_inputs_immutable: true

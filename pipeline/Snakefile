@@ -1,0 +1,173 @@
+"""ISO_DAF standard Snakemake entrypoint.
+
+The rules establish the stable stage contract first. Profile-specific
+analysis implementations are added behind these rules without changing the
+output, logging, or temporary-directory contract.
+"""
+
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(workflow.basedir).parent.resolve()
+RUN_ID = str(config.get("run_id", "run001"))
+PATH_CONFIG = config.get("paths", {})
+RUN_ROOT = PROJECT_ROOT / str(PATH_CONFIG.get("results_root", "outputs")) / RUN_ID
+LOG_ROOT = PROJECT_ROOT / str(PATH_CONFIG.get("logs_root", "log")) / RUN_ID
+TMP_ROOT = PROJECT_ROOT / "tmp" / RUN_ID
+STAGE_RUNNER = PROJECT_ROOT / "pipeline" / "scripts" / "stage_runner.py"
+REPORT_RUNNER = PROJECT_ROOT / "pipeline" / "scripts" / "run_report.py"
+CONFIGFILE = str(workflow.configfiles[0])
+REAL_MODE = str(config.get("execution", {}).get("mode", "contract_only")) == "real"
+ILLUMINA_PE = str(config.get("execution", {}).get("workflow", "")) == "illumina_pe"
+REPORT_NAME = "DAFseq_analysis_report_zoom_fiberhmm.html" if REAL_MODE else f"{RUN_ID}_pipeline_report.html"
+if ILLUMINA_PE:
+    REPORT_NAME = f"{RUN_ID}_DAFseq_analysis_report.html"
+REAL_SCRIPTS = {
+    "preflight": PROJECT_ROOT / "pipeline" / "scripts" / "real_preflight.py",
+    "raw_qc": PROJECT_ROOT / "pipeline" / "scripts" / "real_raw_qc.py",
+    "alignment_qc": PROJECT_ROOT / "pipeline" / "scripts" / "real_alignment_qc.py",
+    "canonical_filter": PROJECT_ROOT / "pipeline" / "scripts" / "real_canonical_filter.py",
+    "daf_signal": PROJECT_ROOT / "pipeline" / "scripts" / "real_daf_signal.py",
+    "fiberhmm": PROJECT_ROOT / "pipeline" / "scripts" / "real_fiberhmm.py",
+    "delivery": PROJECT_ROOT / "pipeline" / "scripts" / "real_delivery.py",
+}
+PYTHON = str(PROJECT_ROOT / "bin" / "python")
+if not Path(PYTHON).is_file():
+    PYTHON = "python3"
+
+
+def stage_output(name):
+    return str(RUN_ROOT / name / "stage_complete.tsv")
+
+
+rule all:
+    input:
+        str(RUN_ROOT / "08_report" / REPORT_NAME)
+
+
+rule illumina_pe_analysis:
+    output:
+        str(RUN_ROOT / "08_report" / (REPORT_NAME if ILLUMINA_PE else "unused_illumina_pe_report.html"))
+    log:
+        str(LOG_ROOT / "illumina_pe_pipeline.log")
+    params:
+        tmp=str(TMP_ROOT),
+        script=str(PROJECT_ROOT / "pipeline" / "scripts" / "real_illumina_pe.py")
+    shell:
+        "mkdir -p {params.tmp} {RUN_ROOT} {LOG_ROOT} && {PYTHON} -u {params.script} --configfile {CONFIGFILE} --project-root {PROJECT_ROOT} --tmp {params.tmp} > {log} 2>&1"
+
+
+rule preflight:
+    output:
+        stage_output("01_preflight")
+    log:
+        str(LOG_ROOT / "01_preflight.log")
+    params:
+        stage="preflight",
+        tmp=str(TMP_ROOT / "01_preflight")
+    shell:
+        (f"mkdir -p {TMP_ROOT / '01_preflight'} && {PYTHON} {REAL_SCRIPTS['preflight']} --configfile {CONFIGFILE} --project-root {PROJECT_ROOT} --output {{output}} --tmp {TMP_ROOT / '01_preflight'} > {{log}} 2>&1" if REAL_MODE else
+         "mkdir -p {params.tmp} && {PYTHON} {STAGE_RUNNER} --configfile {CONFIGFILE} --project-root {PROJECT_ROOT} --stage {params.stage} --output {output} --tmp {params.tmp} > {log} 2>&1")
+
+
+rule raw_qc:
+    input:
+        stage_output("01_preflight")
+    output:
+        stage_output("02_raw_qc")
+    log:
+        str(LOG_ROOT / "02_raw_qc.log")
+    params:
+        stage="raw_qc",
+        tmp=str(TMP_ROOT / "02_raw_qc")
+    shell:
+        (f"mkdir -p {TMP_ROOT / '02_raw_qc'} && {PYTHON} {REAL_SCRIPTS['raw_qc']} --configfile {CONFIGFILE} --project-root {PROJECT_ROOT} --input {{input}} --output {{output}} --tmp {TMP_ROOT / '02_raw_qc'} > {{log}} 2>&1" if REAL_MODE else
+         "mkdir -p {params.tmp} && {PYTHON} {STAGE_RUNNER} --configfile {CONFIGFILE} --project-root {PROJECT_ROOT} --stage {params.stage} --input {input} --output {output} --tmp {params.tmp} > {log} 2>&1")
+
+
+rule alignment_qc:
+    input:
+        stage_output("02_raw_qc")
+    output:
+        stage_output("03_alignment_qc")
+    log:
+        str(LOG_ROOT / "03_alignment_qc.log")
+    params:
+        stage="alignment_qc",
+        tmp=str(TMP_ROOT / "03_alignment_qc")
+    shell:
+        (f"mkdir -p {TMP_ROOT / '03_alignment_qc'} && {PYTHON} {REAL_SCRIPTS['alignment_qc']} --configfile {CONFIGFILE} --project-root {PROJECT_ROOT} --input {{input}} --output {{output}} --tmp {TMP_ROOT / '03_alignment_qc'} > {{log}} 2>&1" if REAL_MODE else
+         "mkdir -p {params.tmp} && {PYTHON} {STAGE_RUNNER} --configfile {CONFIGFILE} --project-root {PROJECT_ROOT} --stage {params.stage} --input {input} --output {output} --tmp {params.tmp} > {log} 2>&1")
+
+
+rule canonical_filter:
+    input:
+        stage_output("03_alignment_qc")
+    output:
+        stage_output("04_canonical_filter")
+    log:
+        str(LOG_ROOT / "04_canonical_filter.log")
+    params:
+        stage="canonical_filter",
+        tmp=str(TMP_ROOT / "04_canonical_filter")
+    shell:
+        (f"mkdir -p {TMP_ROOT / '04_canonical_filter'} && {PYTHON} {REAL_SCRIPTS['canonical_filter']} --configfile {CONFIGFILE} --project-root {PROJECT_ROOT} --input {{input}} --output {{output}} --tmp {TMP_ROOT / '04_canonical_filter'} > {{log}} 2>&1" if REAL_MODE else
+         "mkdir -p {params.tmp} && {PYTHON} {STAGE_RUNNER} --configfile {CONFIGFILE} --project-root {PROJECT_ROOT} --stage {params.stage} --input {input} --output {output} --tmp {params.tmp} > {log} 2>&1")
+
+
+rule daf_signal:
+    input:
+        stage_output("04_canonical_filter")
+    output:
+        stage_output("05_daf_signal")
+    log:
+        str(LOG_ROOT / "05_daf_signal.log")
+    params:
+        stage="daf_signal",
+        tmp=str(TMP_ROOT / "05_daf_signal")
+    shell:
+        (f"mkdir -p {TMP_ROOT / '05_daf_signal'} && {PYTHON} {REAL_SCRIPTS['daf_signal']} --configfile {CONFIGFILE} --project-root {PROJECT_ROOT} --input {{input}} --output {{output}} --tmp {TMP_ROOT / '05_daf_signal'} > {{log}} 2>&1" if REAL_MODE else
+         "mkdir -p {params.tmp} && {PYTHON} {STAGE_RUNNER} --configfile {CONFIGFILE} --project-root {PROJECT_ROOT} --stage {params.stage} --input {input} --output {output} --tmp {params.tmp} > {log} 2>&1")
+
+
+rule fiberhmm:
+    input:
+        stage_output("05_daf_signal")
+    output:
+        stage_output("06_fiberhmm")
+    log:
+        str(LOG_ROOT / "06_fiberhmm.log")
+    params:
+        stage="fiberhmm",
+        tmp=str(TMP_ROOT / "06_fiberhmm")
+    shell:
+        (f"mkdir -p {TMP_ROOT / '06_fiberhmm'} && {PYTHON} {REAL_SCRIPTS['fiberhmm']} --configfile {CONFIGFILE} --project-root {PROJECT_ROOT} --input {{input}} --output {{output}} --tmp {TMP_ROOT / '06_fiberhmm'} > {{log}} 2>&1" if REAL_MODE else
+         "mkdir -p {params.tmp} && {PYTHON} {STAGE_RUNNER} --configfile {CONFIGFILE} --project-root {PROJECT_ROOT} --stage {params.stage} --input {input} --output {output} --tmp {params.tmp} > {log} 2>&1")
+
+
+rule delivery:
+    input:
+        stage_output("06_fiberhmm")
+    output:
+        stage_output("07_delivery")
+    log:
+        str(LOG_ROOT / "07_delivery.log")
+    params:
+        stage="delivery",
+        tmp=str(TMP_ROOT / "07_delivery")
+    shell:
+        (f"mkdir -p {TMP_ROOT / '07_delivery'} && {PYTHON} {REAL_SCRIPTS['delivery']} --configfile {CONFIGFILE} --project-root {PROJECT_ROOT} --input {{input}} --output {{output}} --tmp {TMP_ROOT / '07_delivery'} > {{log}} 2>&1" if REAL_MODE else
+         "mkdir -p {params.tmp} && {PYTHON} {STAGE_RUNNER} --configfile {CONFIGFILE} --project-root {PROJECT_ROOT} --stage {params.stage} --input {input} --output {output} --tmp {params.tmp} > {log} 2>&1")
+
+
+rule report:
+    input:
+        stage_output("07_delivery")
+    log:
+        str(LOG_ROOT / "08_report.log")
+    params:
+        tmp=str(TMP_ROOT / "08_report")
+    output:
+        str(RUN_ROOT / "08_report" / ("unused_non_pe_report.html" if ILLUMINA_PE else REPORT_NAME))
+    shell:
+        "mkdir -p {params.tmp} && {PYTHON} {REPORT_RUNNER} --configfile {CONFIGFILE} --project-root {PROJECT_ROOT} --input {input} --output {output} --tmp {params.tmp} > {log} 2>&1"
